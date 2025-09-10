@@ -1,0 +1,184 @@
+import os
+import uuid
+import httpx
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field, AliasChoices, constr
+from sqlalchemy import select, text, and_, func
+
+from app.db.session import SessionLocal
+from app.models.address import Address
+from app.models.request import Request
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_ADMIN_IDS = [x for x in os.getenv("TELEGRAM_ADMIN_IDS", "").replace(" ", "").split(",") if x]
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
+
+async def notify_new_request_tg(
+    *, rid: str, currency: str, payin_address: str | None,
+    destination_address: str, contact: str | None, status: str
+):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_ADMIN_IDS:
+        return
+
+    link = f"\nСсылка: {PUBLIC_BASE_URL}/status/{rid}" if PUBLIC_BASE_URL else ""
+    text = (
+        f"<b>Новая заявка</b>\n"
+        f"ID: <code>{rid}</code>\n"
+        f"Сеть: {currency}\n"
+        f"Адрес получения: <code>{payin_address or '-'}</code>\n"
+        f"Адрес отправки: <code>{destination_address}</code>\n"
+        f"Контакт: {contact or '-'}\n"   # <-- тут именно \n
+        f"Статус: {status}"
+        f"{link}"
+    )
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    kb = {
+        "inline_keyboard": [
+            [ {"text": "🛠 Обработать", "callback_data": f"req:{rid}:open"} ]
+        ]
+    }
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        for chat_id in TELEGRAM_ADMIN_IDS:
+            try:
+                await client.post(url, json={
+                    "chat_id": int(chat_id),
+                    "text": text,
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": True,
+                    "reply_markup": kb,
+                })
+            except Exception as e:
+                print(f"[notify] failed to send to {chat_id}: {e}")
+
+APP_SECRET_KEY = os.getenv("APP_SECRET_KEY", "dev-secret")
+ADDRESS_RESERVE_MINUTES = int(os.getenv("ADDRESS_RESERVE_MINUTES", "30"))
+LOG_TTL_HOURS = int(os.getenv("LOG_TTL_HOURS", "48"))
+SUPPORTED_CURRENCIES = [s.strip() for s in os.getenv("SUPPORTED_CURRENCIES", "BITCOIN,ETHEREUM,TRC-20,ERC-20,MONERO").split(",")]
+
+class RequestCreate(BaseModel):
+    currency: constr(strip_whitespace=True)
+    destination_address: constr(strip_whitespace=True, min_length=5, max_length=256) = Field(
+        validation_alias=AliasChoices("destination_address", "payout_address")
+    )
+    contact: Optional[constr(strip_whitespace=True, max_length=256)] = None
+
+class RequestOut(BaseModel):
+    id: str
+    currency: str
+    payin_address: str
+    status: str
+    reserved_until: Optional[datetime]
+
+class HealthOut(BaseModel):
+    ok: bool
+
+app = FastAPI(title="MixLab2 API")
+
+@app.get("/api/health", response_model=HealthOut)
+def health():
+    return HealthOut(ok=True)
+
+async def allocate_address(session, currency: str) -> Address:
+    now = datetime.now(timezone.utc)
+
+    # снимаем просроченные резервы
+    q = select(Address).where(and_(
+        Address.is_active.is_(True),
+        Address.is_reserved.is_(True),
+        Address.reserved_until.is_not(None),
+        Address.reserved_until < now
+    ))
+    res = await session.execute(q)
+    for a in res.scalars().all():
+        a.is_reserved = False
+        a.reserved_until = None
+        await session.flush()
+
+    # берём свободный адрес
+    q2 = (select(Address)
+          .where(and_(Address.currency == currency,
+                      Address.is_active.is_(True),
+                      Address.is_reserved.is_(False)))
+          .order_by(Address.last_assigned_at.is_(None).desc(), Address.id)
+          .limit(1))
+    res2 = await session.execute(q2)
+    addr = res2.scalars().first()
+    if not addr:
+        raise HTTPException(status_code=409, detail="No free addresses in pool for this currency")
+
+    addr.is_reserved = True
+    addr.reserved_until = now + timedelta(minutes=ADDRESS_RESERVE_MINUTES)
+    addr.last_assigned_at = now
+    await session.flush()
+    return addr
+
+# сразу после health()
+@app.get("/api/stats")
+async def stats():
+    async with SessionLocal() as session:
+        res = await session.execute(
+            select(func.count()).select_from(Request).where(Request.status == "COMPLETED")
+        )
+        return {"completed": res.scalar_one()}
+
+
+@app.post("/api/requests", response_model=RequestOut)
+async def create_request(payload: RequestCreate):
+    currency = payload.currency.strip()
+    if currency not in SUPPORTED_CURRENCIES:
+        raise HTTPException(status_code=400, detail=f"Unsupported currency. Allowed: {', '.join(SUPPORTED_CURRENCIES)}")
+
+    async with SessionLocal() as session:
+        async with session.begin():
+            addr = await allocate_address(session, currency)
+            r = Request(
+                currency=currency,
+                destination_address=payload.destination_address.strip(),
+                contact=(payload.contact.strip() if payload.contact else None),
+                payin_address=addr.address,
+                status="CREATED",
+                reserved_until=addr.reserved_until,
+            )
+            session.add(r)
+
+        await session.commit()
+
+        # 🔔 пробуем уведомить админов; сбои не ломают ответ пользователю
+        try:
+            await notify_new_request_tg(
+            rid=str(r.id),
+            currency=r.currency,
+            payin_address=r.payin_address,
+            destination_address=r.destination_address,
+            contact=r.contact,
+            status=r.status,
+        )
+        except Exception as e:
+            print(f"[notify] error: {e}")
+
+        return RequestOut(
+            id=str(r.id),
+            currency=r.currency,
+            payin_address=r.payin_address,
+            status=r.status,
+            reserved_until=r.reserved_until,
+        )
+
+@app.get("/api/requests/{req_id}", response_model=RequestOut)
+async def get_request(req_id: str):
+    try:
+        rid = uuid.UUID(req_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid request id format")
+    async with SessionLocal() as session:
+        r = await session.get(Request, rid)
+        if not r:
+            raise HTTPException(status_code=404, detail="Request not found")
+        return RequestOut(
+            id=str(r.id), currency=r.currency, payin_address=r.payin_address,
+            status=r.status, reserved_until=r.reserved_until
+        )

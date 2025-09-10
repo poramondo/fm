@@ -1,0 +1,29 @@
+async def run_webhook_server():
+    if not WEBHOOK_URL or not WEBHOOK_SECRET:
+        raise SystemExit("WEBHOOK_URL/WEBHOOK_SECRET не заданы")
+
+    bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    app = web.Application()
+
+    SimpleRequestHandler(dispatcher=dp, bot=bot, secret_token=WEBHOOK_SECRET).register(app, path=WEBHOOK_PATH)
+    setup_application(app, dp, bot=bot)
+
+    async def on_startup(app_):
+        await bot.set_webhook(WEBHOOK_URL, secret_token=WEBHOOK_SECRET, drop_pending_updates=True)
+        log.info("Webhook set to %s", WEBHOOK_URL)
+
+    async def on_shutdown(app_):
+        await bot.delete_webhook()
+        log.info("Webhook deleted")
+
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host=WEBAPP_HOST, port=WEBAPP_PORT)
+    await site.start()
+    log.info("Webhook server started on %s:%s", WEBAPP_HOST, WEBAPP_PORT)
+
+    # держим процесс «вечно»
+    await asyncio.Event().wait()

@@ -1,0 +1,7 @@
+Log notice stdout
+DataDirectory /var/lib/tor
+# v3 onion
+HiddenServiceDir /var/lib/tor/hs
+HiddenServiceVersion 3
+# Отдаём весь трафик на nginx:80
+HiddenServicePort 80 nginx:80
