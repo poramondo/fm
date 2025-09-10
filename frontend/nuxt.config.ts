@@ -1,0 +1,21 @@
+import { defineNuxtConfig } from 'nuxt/config'
+
+export default defineNuxtConfig({
+  nitro: { preset: 'node-server' },
+  modules: ['@nuxtjs/tailwindcss'],
+  css: ['@/assets/css/tailwind.css'],
+  runtimeConfig: {
+    public: {
+      apiBase: process.env.API_BASE_URL || '/api'
+    }
+  },
+  app: {
+    head: {
+      title: 'FastMix',
+      meta: [
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        { name: 'theme-color', content: '#0b1020' }
+      ]
+    }
+  }
+})

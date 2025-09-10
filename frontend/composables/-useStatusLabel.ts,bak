@@ -1,0 +1,11 @@
+export function useStatusLabel() {
+  const map: Record<string, { t: string; icon: string }> = {
+    CREATED: { t: 'Создано', icon: '🆕' },
+    AWAITING_PAYMENT: { t: 'Ожидает оплату', icon: '💸' },
+    PROCESSING: { t: 'Обработка', icon: '🛠' },
+    COMPLETED: { t: 'Выполнено', icon: '✅' },
+    CANCELED: { t: 'Отменено', icon: '🛑' },
+    EXPIRED: { t: 'Истёк срок', icon: '⏰' }
+  }
+  return (k: string) => map[k]?.icon + ' ' + (map[k]?.t || k)
+}

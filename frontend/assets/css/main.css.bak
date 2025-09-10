@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #__nuxt { height: 100%; }
+body { @apply bg-base text-ink font-sans; }
+
+/* ---------- Доп. утилиты для прозрачных цветов внутри @apply ---------- */
+@layer utilities {
+  .bg-white-5  { background-color: rgb(255 255 255 / 0.05); }
+  .bg-white-8  { background-color: rgb(255 255 255 / 0.08); }
+  .bg-white-10 { background-color: rgb(255 255 255 / 0.10); }
+  .bg-white-15 { background-color: rgb(255 255 255 / 0.15); }
+
+  .border-white-10 { border-color: rgb(255 255 255 / 0.10); }
+  .ring-white-10   { --tw-ring-color: rgb(255 255 255 / 0.10); }
+
+  /* Полупрозрачное синее для focus ring (blue-500 ~ #3b82f6) */
+  .ring-blue-500-50 { --tw-ring-color: rgb(59 130 246 / 0.5); }
+
+  /* Иногда полезно для текстов на тёмном фоне */
+  .text-white-70 { color: rgb(255 255 255 / 0.70); }
+}
+
+/* ---------- Aurora background + subtle grid ---------- */
+.bg-aurora {
+  position: fixed; inset: 0; z-index: -1;
+  background:
+    radial-gradient(60% 40% at 80% 20%, rgba(76,130,255,0.12), transparent 60%),
+    radial-gradient(50% 50% at 10% 80%, rgba(167,139,250,0.14), transparent 60%),
+    radial-gradient(40% 40% at 70% 70%, rgba(34,211,163,0.12), transparent 60%),
+    linear-gradient(180deg, #0b0f1a 0%, #0b0f1a 100%);
+  filter: saturate(1.1);
+}
+.bg-aurora::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 24px 24px, 24px 24px;
+}
+
+/* ---------- Glass card ---------- */
+.glass {
+  @apply bg-white-8 backdrop-blur-md rounded-2xl shadow-glass border border-white-10;
+}
+
+/* ---------- Buttons ---------- */
+.btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 font-medium; }
+.btn-primary { @apply bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white; }
+
+/* было: @apply bg-white/10 hover:bg-white/15 text-ink; */
+.btn-secondary { @apply text-ink bg-white-10; }
+.btn-secondary:hover { @apply bg-white-15; }
+
+.btn-ghost { /* было: @apply hover:bg-white/10; */ }
+.btn-ghost:hover { @apply bg-white-10; }
+
+/* ---------- Badges ---------- */
+.badge { @apply px-3 py-1 rounded-full text-sm bg-white-10 border border-white-10; }
+
+/* ---------- Inputs ---------- */
+.input, .select, .checkbox {
+  /* было: bg-white/5 border-white/10 focus:ring-blue-500/50 */
+  @apply w-full bg-white-5 border border-white-10 rounded-xl px-3 py-2 text-ink placeholder:opacity-60 outline-none focus:ring-2 ring-blue-500-50;
+}
+
+/* ---------- Links ---------- */
+.link { @apply text-blue-400 hover:text-blue-300 underline underline-offset-4; }
+
+/* ---------- Status badges ---------- */
+.status {
+  @apply inline-flex items-center gap-2 px-3 py-1 rounded-lg text-sm bg-white-10 border border-white-10;
+}
+.status[data-k="CREATED"],
+.status[data-k="AWAITING_PAYMENT"] { @apply text-yellow-300; }
+.status[data-k="PROCESSING"] { @apply text-blue-300; }
+.status[data-k="COMPLETED"] { @apply text-emerald-300; }
+.status[data-k="CANCELED"],
+.status[data-k="EXPIRED"] { @apply text-rose-300; }

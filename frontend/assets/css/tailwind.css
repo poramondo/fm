@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* === Токены темы (светлая/тёмная) === */
+@layer base {
+  :root {
+    --bg: #0f1115;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+
+    --card-bg: #161a20;
+    --card-border: #222733;
+
+    --input-bg: #0e1217;
+    --input-border: #1f2430;
+
+    --btn-bg: #0ea5e9;
+    --btn-fg: #ffffff;
+
+    --code-bg: #0b0f14;
+  }
+
+  /* если захочешь светлую тему — позже переопределим тут переменные */
+  .light {
+    --bg: #f7f7f9;
+    --text: #0f1115;
+    --muted: #6b7280;
+
+    --card-bg: #ffffff;
+    --card-border: #e5e7eb;
+
+    --input-bg: #ffffff;
+    --input-border: #d1d5db;
+
+    --btn-bg: #111827;
+    --btn-fg: #ffffff;
+
+    --code-bg: #f3f4f6;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+  }
+}
+
+/* === Наши вспомогательные классы поверх Tailwind === */
+@layer components {
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    @apply rounded-xl p-4;
+  }
+
+  .input {
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text);
+    @apply w-full rounded-md px-3 py-2 text-sm;
+  }
+
+  .btn {
+    background: var(--btn-bg);
+    color: var(--btn-fg);
+    @apply inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium;
+  }
+  .btn:disabled { @apply opacity-60 cursor-not-allowed; }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium;
+    background: #1f2937; /* slate-800 */
+    color: #fff;
+  }
+
+  .code {
+    background: var(--code-bg);
+    color: var(--text);
+    @apply px-1.5 py-0.5 rounded;
+  }
+}

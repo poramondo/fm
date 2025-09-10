@@ -1,0 +1,21 @@
+:root {
+  --bg: #0f1115;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+
+  --card-bg: #161a20;
+  --card-border: 1px solid #222733;
+
+  --input-bg: #0e1217;
+  --input-border: 1px solid #1f2430;
+
+  --btn-bg: #0ea5e9;
+  --btn-fg: #ffffff;
+
+  --code-bg: #0b0f14;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}

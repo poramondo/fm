@@ -1,0 +1,17 @@
+export const useSuccessCounter = () => {
+  const count = useState<number>('success-count', () => 0)
+  const { getStats } = useApi()
+
+  const refresh = async () => {
+    try { count.value = (await getStats()).completed_count || 0 } catch {}
+  }
+
+  // Обновляем при заходе на главную и раз в 60 сек (щадяще)
+  if (process.client) {
+    refresh()
+    const id = setInterval(refresh, 60_000)
+    onUnmounted(() => clearInterval(id))
+  }
+
+  return { count, refresh }
+}
